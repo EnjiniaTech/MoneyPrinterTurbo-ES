@@ -1,0 +1,29 @@
+services:
+  webui:
+    image: ${IMAGE_NAME:-enjiniatech/moneyprinterturbo-es:latest}
+    container_name: moneyprinterturbo-es-webui
+    ports:
+      - "${WEBUI_PORT:-8501}:8501"
+    env_file:
+      - .env
+    environment:
+      PORT: 8501
+      LISTEN_HOST: 0.0.0.0
+    volumes:
+      - ./storage:/MoneyPrinterTurbo/storage
+    restart: unless-stopped
+
+  api:
+    image: ${IMAGE_NAME:-enjiniatech/moneyprinterturbo-es:latest}
+    container_name: moneyprinterturbo-es-api
+    command: ["/bin/sh", "-lc", "./api.sh"]
+    ports:
+      - "${API_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      PORT: 8080
+      LISTEN_HOST: 0.0.0.0
+    volumes:
+      - ./storage:/MoneyPrinterTurbo/storage
+    restart: unless-stopped

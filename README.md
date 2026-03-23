@@ -132,6 +132,54 @@ Después:
 - WebUI: `http://127.0.0.1:8501`
 - API: `http://127.0.0.1:8080/docs`
 
+## Despliegue en Railway
+
+La forma correcta de desplegar este fork en Railway es `env-first`.
+
+### Qué hacer
+
+1. Conecta el repositorio a Railway.
+2. Crea un servicio para la `WebUI`.
+3. Si quieres exponer la API también, crea un segundo servicio apuntando al mismo repo.
+4. Usa las variables de [.env.example](/Users/fabiannitka/code/MoneyPrinterTurbo/.env.example) como referencia.
+
+### Variables
+
+Railway funciona mejor si configuras variables como:
+
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `OPENAI_MODEL_NAME`
+- `GEMINI_API_KEY`
+- `PEXELS_API_KEYS`
+- `PIXABAY_API_KEYS`
+- `AZURE_SPEECH_KEY`
+- `AZURE_SPEECH_REGION`
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_MODEL_ID`
+- `ELEVENLABS_VOICE_ID`
+- `UI_LANGUAGE`
+- `UI_TTS_SERVER`
+- `UI_VOICE_NAME`
+
+### Start command recomendado
+
+Para la WebUI:
+
+```bash
+./webui.sh
+```
+
+Para la API:
+
+```bash
+./api.sh
+```
+
+### Nota importante
+
+Railway no necesita `docker-compose` para desplegar este proyecto. El `compose` es útil para usuarios finales o despliegues propios, pero en Railway lo normal es desplegar servicios separados desde el mismo repo o la misma imagen.
+
 ## Voz y subtítulos
 
 ### Proveedores de voz
