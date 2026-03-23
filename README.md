@@ -23,51 +23,49 @@
 
 ---
 
-## Qué hace
+## ¿Qué es?
 
-Le das un tema o una palabra clave y genera un vídeo corto completo: guion, material visual, voz, subtítulos y música de fondo. Todo automatizado.
+Proporciona un tema o palabra clave y el proyecto genera automáticamente un vídeo corto completo: guion, material visual, voz sintetizada, subtítulos y música de fondo.
 
-Este fork adapta el proyecto al ecosistema hispanohablante: la interfaz está en español, las voces y variantes de idioma apuntan a España y LATAM, y el soporte para Gemini TTS y ElevenLabs está integrado y funcionando con la API actual.
+Este fork adapta el proyecto original al ecosistema hispanohablante. La interfaz está en español, las variantes de idioma cubren España y LATAM, y la integración con Gemini TTS y ElevenLabs está actualizada y funcional con las versiones actuales de sus APIs.
 
-## Qué añade respecto al original
+## Diferencias respecto al proyecto original
 
 - Interfaz completamente en español
 - Generación de vídeo en `es-ES` y `es-MX`
-- Soporte corregido para Gemini TTS (compatible con la API de 2024+)
-- ElevenLabs visible y configurable desde la UI
+- Soporte actualizado para Gemini TTS (compatible con la API de 2024+)
+- ElevenLabs integrado y configurable desde la interfaz
 - Configuración de ejemplo orientada a español desde el primer momento
-- Preparado para despliegue con variables de entorno (Docker, Railway, cualquier PaaS)
+- Diseñado para despliegues con variables de entorno (Docker, Railway, cualquier PaaS)
 
 ## Funciones principales
 
-- API REST + WebUI independientes, arquitectura MVC limpia
-- Guion generado por IA o manual
+- API REST y WebUI independientes con arquitectura MVC
+- Generación de guion con IA o introducción manual
 - Exportación en vertical `9:16` y horizontal `16:9`
 - Generación por lotes
-- Material de Pexels, Pixabay o archivos locales propios
-- Múltiples proveedores LLM: OpenAI, Gemini, Azure, Ollama, DeepSeek y más
+- Material de Pexels, Pixabay o archivos locales
+- Compatibilidad con múltiples proveedores LLM: OpenAI, Gemini, Azure, Ollama, DeepSeek y otros
 - Síntesis de voz: Azure TTS, Gemini TTS, ElevenLabs, SiliconFlow
-- Subtítulos automáticos con `edge` (rápido) o `whisper` (más preciso)
+- Subtítulos automáticos con `edge` (rápido) o `whisper` (mayor precisión)
 - Música de fondo aleatoria o personalizada
 
 ---
 
-## Inicio rápido
+## Instalación
 
 ### Opción 1: Docker (recomendado)
 
-Es la forma más sencilla si no quieres tocar el entorno local.
-
 ```bash
 cp .env.example .env
-# Edita .env con tus claves
+# Edita .env con tus claves de API
 docker compose up
 ```
 
-- WebUI: `http://localhost:8501`
-- API: `http://localhost:8080/docs`
+- WebUI disponible en `http://localhost:8501`
+- API disponible en `http://localhost:8080/docs`
 
-Para desarrollo con código fuente montado:
+Para desarrollo con el código fuente montado como volumen:
 
 ```bash
 docker compose -f docker-compose.dev.yml up --build
@@ -75,7 +73,7 @@ docker compose -f docker-compose.dev.yml up --build
 
 ### Opción 2: Instalación manual
 
-**Requisitos del sistema:** `ffmpeg` e `ImageMagick`.
+**Dependencias del sistema:** `ffmpeg` e `ImageMagick`.
 
 ```bash
 # macOS
@@ -96,16 +94,16 @@ pip install -r requirements.txt
 cp config.example.toml config.toml
 ```
 
-Edita `config.toml` y configura al menos tu proveedor LLM y las claves de Pexels o Pixabay.
+Edita `config.toml` y define como mínimo el proveedor LLM y las claves de Pexels o Pixabay.
 
-**Arrancar la WebUI:**
+**Iniciar la WebUI:**
 
 ```bash
 sh webui.sh        # macOS / Linux
 webui.bat          # Windows
 ```
 
-**Arrancar la API:**
+**Iniciar la API:**
 
 ```bash
 python main.py
@@ -113,9 +111,9 @@ python main.py
 
 ---
 
-## Despliegue con Docker Hub
+## Imagen Docker
 
-La imagen está publicada en Docker Hub. Puedes tirar de ella directamente sin clonar el repositorio.
+La imagen está publicada en Docker Hub y puede usarse directamente sin necesidad de clonar el repositorio.
 
 ```bash
 docker pull enjiniatech/moneyprinterturbo-es:latest
@@ -149,31 +147,18 @@ docker run --name mpt-api \
   /bin/sh -lc ./api.sh
 ```
 
-La imagen se publica automáticamente desde GitHub Actions cuando hay cambios en `main` o cuando se empuja un tag semántico (`v1.2.7`). Para activarlo en tu fork, añade los secrets `DOCKERHUB_USERNAME` y `DOCKERHUB_TOKEN` en la configuración del repositorio.
-
 ---
 
-## Despliegue en Railway
+## Variables de entorno
 
-Conecta el repositorio directamente en Railway. No necesitas Docker Compose, Railway gestiona cada servicio por separado.
-
-Crea un servicio para la WebUI y, si quieres exponer la API también, un segundo servicio apuntando al mismo repositorio.
-
-**Start commands:**
-
-```bash
-./webui.sh   # servicio WebUI
-./api.sh     # servicio API
-```
-
-Configura las variables desde el panel de Railway. Puedes usar `.env.example` como referencia para saber qué necesitas. Las más habituales:
+Tanto si usas Docker, Railway u otro PaaS, la configuración se gestiona mediante variables de entorno. El archivo `.env.example` incluye todas las disponibles; las más habituales son:
 
 | Variable | Descripción |
 |---|---|
 | `LLM_PROVIDER` | `openai`, `gemini`, `azure`... |
 | `OPENAI_API_KEY` | Clave del proveedor LLM |
-| `OPENAI_BASE_URL` | Si usas un proxy o endpoint alternativo |
-| `OPENAI_MODEL_NAME` | Modelo a usar |
+| `OPENAI_BASE_URL` | Endpoint alternativo o proxy |
+| `OPENAI_MODEL_NAME` | Modelo a utilizar |
 | `PEXELS_API_KEYS` | Clave de Pexels |
 | `PIXABAY_API_KEYS` | Clave de Pixabay |
 | `GEMINI_API_KEY` | Para Gemini LLM o Gemini TTS |
@@ -188,23 +173,23 @@ Configura las variables desde el panel de Railway. Puedes usar `.env.example` co
 
 ## Voz y subtítulos
 
-### Proveedores de voz soportados
+### Proveedores de voz
 
 - Azure TTS (V1 y V2)
 - Google Gemini TTS
 - ElevenLabs
 - SiliconFlow TTS
 
-Para Gemini TTS basta con `GEMINI_API_KEY`. Para ElevenLabs necesitas `ELEVENLABS_API_KEY`, `ELEVENLABS_MODEL_ID` y `ELEVENLABS_VOICE_ID` (o seleccionar la voz desde la UI si tu plan devuelve el listado de voces).
+Gemini TTS requiere únicamente `GEMINI_API_KEY`. ElevenLabs requiere `ELEVENLABS_API_KEY`, `ELEVENLABS_MODEL_ID` y `ELEVENLABS_VOICE_ID`, aunque también es posible seleccionar la voz desde la interfaz si tu plan devuelve el listado de voces disponibles.
 
 ### Subtítulos
 
-Hay dos modos configurables en `subtitle_provider` dentro de `config.toml`:
+El modo se configura mediante `subtitle_provider` en `config.toml`:
 
-- `edge`: más rápido, sin requisitos especiales de hardware
-- `whisper`: más fiable en casos difíciles, requiere descargar un modelo de ~3 GB
+- `edge` — generación rápida, sin requisitos especiales de hardware
+- `whisper` — mayor fiabilidad, requiere descargar un modelo de ~3 GB
 
-Si usas `whisper` y la descarga automática falla, coloca el modelo manualmente en:
+Si la descarga automática de Whisper falla, coloca el modelo manualmente en:
 
 ```
 MoneyPrinterTurbo-ES/
@@ -220,10 +205,10 @@ MoneyPrinterTurbo-ES/
 Instálalo en el sistema o define `ffmpeg_path` en `config.toml`.
 
 **Error con ImageMagick**
-En macOS: `brew install imagemagick`. En Linux: `sudo apt-get install imagemagick`. Evita rutas con caracteres especiales en Windows.
+En macOS: `brew install imagemagick`. En Linux: `sudo apt-get install imagemagick`. En Windows, evita rutas con caracteres especiales.
 
 **ImageMagick bloquea operaciones en `/tmp`**
-Edita `policy.xml` (normalmente en `/etc/ImageMagick-X/`) y cambia `rights="none"` a `rights="read|write"` en la línea con `pattern="@"`.
+Edita `policy.xml` (habitualmente en `/etc/ImageMagick-X/`) y modifica el valor `rights` de la entrada con `pattern="@"` de `none` a `read|write`.
 
 **Demasiados archivos abiertos (`Errno 24`)**
 ```bash
@@ -234,9 +219,9 @@ ulimit -n 10240
 
 ## Hoja de ruta
 
-- Más presets y voces para el mercado hispano
-- Mejoras en el flujo de UGC y shorts en español
-- Plantillas y defaults para distintos formatos de contenido
+- Ampliar presets y voces para el mercado hispano
+- Mejorar el flujo para UGC y shorts en español
+- Añadir plantillas para distintos formatos de contenido
 
 ---
 
