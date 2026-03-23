@@ -1,0 +1,25 @@
+x-common-volumes: &common-volumes
+  - ./:/MoneyPrinterTurbo
+
+services:
+  webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: moneyprinterturbo-es-webui-dev
+    ports:
+      - "8501:8501"
+    command: ["/bin/sh", "-lc", "./webui.sh"]
+    volumes: *common-volumes
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: moneyprinterturbo-es-api-dev
+    command: ["/bin/sh", "-lc", "./api.sh"]
+    ports:
+      - "8080:8080"
+    volumes: *common-volumes
+    restart: unless-stopped

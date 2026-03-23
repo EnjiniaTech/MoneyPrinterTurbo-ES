@@ -121,9 +121,59 @@ La documentación interactiva suele quedar en:
 
 - `http://127.0.0.1:8080/docs`
 
-## Despliegue con Docker
+## Docker Hub y contenedores
+
+El camino principal para usuarios externos es:
+
+- hacer `docker pull`
+- usar la imagen publicada en Docker Hub
+- pasar variables por `.env` o `-e`
+- persistir `storage/` fuera del contenedor
+
+### Descargar la imagen
 
 ```bash
+docker pull enjiniatech/moneyprinterturbo-es:latest
+```
+
+### docker run para WebUI
+
+```bash
+docker run --name moneyprinterturbo-es-webui \
+  -p 8501:8501 \
+  -e PORT=8501 \
+  -e LISTEN_HOST=0.0.0.0 \
+  -e UI_LANGUAGE=es \
+  -e LLM_PROVIDER=openai \
+  -e OPENAI_API_KEY=tu_api_key \
+  -e OPENAI_MODEL_NAME=gpt-5 \
+  -e PEXELS_API_KEYS=tu_pexels_key \
+  -v $(pwd)/storage:/MoneyPrinterTurbo/storage \
+  enjiniatech/moneyprinterturbo-es:latest
+```
+
+### docker run para API
+
+```bash
+docker run --name moneyprinterturbo-es-api \
+  -p 8080:8080 \
+  -e PORT=8080 \
+  -e LISTEN_HOST=0.0.0.0 \
+  -e LLM_PROVIDER=openai \
+  -e OPENAI_API_KEY=tu_api_key \
+  -e OPENAI_MODEL_NAME=gpt-5 \
+  -e PEXELS_API_KEYS=tu_pexels_key \
+  -v $(pwd)/storage:/MoneyPrinterTurbo/storage \
+  enjiniatech/moneyprinterturbo-es:latest \
+  /bin/sh -lc ./api.sh
+```
+
+### Docker Compose
+
+`docker-compose.yml` es ahora el camino principal para uso real con imagen publicada.
+
+```bash
+cp .env.example .env
 docker compose up
 ```
 
@@ -131,6 +181,12 @@ Después:
 
 - WebUI: `http://127.0.0.1:8501`
 - API: `http://127.0.0.1:8080/docs`
+
+Si quieres desarrollo local montando el código fuente:
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
 
 ## Despliegue en Railway
 

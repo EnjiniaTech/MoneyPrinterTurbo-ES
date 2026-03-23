@@ -1,11 +1,6 @@
-# Use an official Python runtime as a parent image
 FROM python:3.11-slim-bullseye
 
-# Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
-
-# 设置/MoneyPrinterTurbo目录权限为777
-RUN chmod 777 /MoneyPrinterTurbo
 
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 
@@ -58,19 +53,11 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trus
 # Now copy the rest of the codebase into the image
 COPY . .
 
-# Expose the ports the app can run on
 EXPOSE 8501 8080
 
-# Command to run the application
 RUN chmod +x /MoneyPrinterTurbo/webui.sh /MoneyPrinterTurbo/api.sh
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501', timeout=5)" || exit 1
+
 CMD ["/bin/sh", "-lc", "./webui.sh"]
-
-# 1. Build the Docker image using the following command
-# docker build -t moneyprinterturbo .
-
-# 2. Run the Docker container using the following command
-## For Linux or MacOS:
-# docker run -v $(pwd)/config.toml:/MoneyPrinterTurbo/config.toml -v $(pwd)/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
-## For Windows:
-# docker run -v ${PWD}/config.toml:/MoneyPrinterTurbo/config.toml -v ${PWD}/storage:/MoneyPrinterTurbo/storage -p 8501:8501 moneyprinterturbo
