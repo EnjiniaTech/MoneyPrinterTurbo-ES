@@ -71,10 +71,10 @@
     "You can download the generated video from the following links": "Puedes descargar el vídeo generado desde estos enlaces",
     "Pexels API Key": "Pexels API Key ([Obtener API Key](https://www.pexels.com/api/))",
     "Pixabay API Key": "Pixabay API Key ([Obtener API Key](https://pixabay.com/api/docs/#api_search_videos))",
-    "Basic Settings": "**Ajustes básicos** (:blue[Haz clic para desplegar])",
+    "Basic Settings": "**Configuración rápida** (:blue[Haz clic para desplegar])",
     "Language": "Idioma",
     "LLM Provider": "Proveedor LLM",
-    "API Key": "API Key (:red[Obligatoria])",
+    "API Key": "API Key",
     "Base Url": "Base URL",
     "Account ID": "Account ID (desde el panel de Cloudflare)",
     "Model Name": "Nombre del modelo",
@@ -131,7 +131,7 @@
     "ElevenLabs Voice ID": "ElevenLabs Voice ID",
     "Manual Voice ID": "Voice ID manual",
     "Refresh Voices": "Actualizar voces",
-    "Current TTS server requires provider-specific credentials in Basic Settings.": "El motor TTS actual necesita credenciales específicas en Ajustes básicos.",
+    "Current TTS server requires provider-specific credentials in Basic Settings.": "El motor TTS actual necesita credenciales específicas del proveedor.",
     "No ElevenLabs voices found. Enter a Voice ID manually or check your API key.": "No se han encontrado voces de ElevenLabs. Introduce un Voice ID manual o revisa tu API Key."
   }
 }

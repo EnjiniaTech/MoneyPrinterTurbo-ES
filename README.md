@@ -67,7 +67,9 @@ git clone https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES.git
 cd MoneyPrinterTurbo-ES
 ```
 
-### 2. Crea tu configuración local
+### 2. Elige cómo vas a configurarlo
+
+#### Opción A: desarrollo local clásico
 
 ```bash
 cp config.example.toml config.toml
@@ -78,6 +80,26 @@ En `config.toml` configura al menos:
 - `pexels_api_keys` o `pixabay_api_keys`
 - un proveedor LLM
 - si vas a usar Gemini TTS o ElevenLabs, sus claves correspondientes
+
+#### Opción B: despliegue con Docker o Railway
+
+Usa variables de entorno. Este fork está preparado para leer primero las variables del entorno y después `config.toml`.
+
+Las más habituales son:
+
+- `LLM_PROVIDER`
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `OPENAI_MODEL_NAME`
+- `PEXELS_API_KEYS`
+- `PIXABAY_API_KEYS`
+- `GEMINI_API_KEY`
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_MODEL_ID`
+- `ELEVENLABS_VOICE_ID`
+- `UI_LANGUAGE`
+- `UI_TTS_SERVER`
+- `UI_VOICE_NAME`
 
 ## Despliegue manual
 
@@ -191,6 +213,30 @@ Si quieres desarrollo local montando el código fuente:
 docker compose -f docker-compose.dev.yml up --build
 ```
 
+## Publicación automática en Docker Hub
+
+El repositorio ya incluye workflow de GitHub Actions para publicar la imagen en Docker Hub cuando haya cambios en `main` o cuando publiques un tag.
+
+### Secrets necesarios en GitHub
+
+Configura estos secrets en el repositorio:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+### Qué hace el workflow
+
+- construye la imagen con `Docker Buildx`
+- publica en `docker.io/enjiniatech/moneyprinterturbo-es`
+- genera `latest` desde `main`
+- genera tags semánticos cuando empujes versiones tipo `v1.2.7`
+
+### Ruta del workflow
+
+```text
+.github/workflows/docker-publish.yml
+```
+
 ## Despliegue en Railway
 
 La forma correcta de desplegar este fork en Railway es `env-first`.
@@ -253,15 +299,23 @@ Actualmente el proyecto soporta:
 
 ### Gemini TTS
 
-Para usar Gemini TTS necesitas completar la `Gemini API Key` en los ajustes básicos de la interfaz o en `config.toml`.
+Para usar Gemini TTS necesitas configurar `GEMINI_API_KEY`.
+
+Puedes hacerlo en:
+
+- variables de entorno
+- `config.toml`
+- o desde la interfaz si estás trabajando en local
 
 ### ElevenLabs
 
 Para usar ElevenLabs necesitas:
 
-- `ElevenLabs API Key`
-- `ElevenLabs Model ID`
-- `ElevenLabs Voice ID` o seleccionar una voz desde la UI si tu cuenta devuelve el listado
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_MODEL_ID`
+- `ELEVENLABS_VOICE_ID` o seleccionar una voz desde la UI si tu cuenta devuelve el listado
+
+Puedes definirlos por variables de entorno o en `config.toml`.
 
 ### Subtítulos
 
