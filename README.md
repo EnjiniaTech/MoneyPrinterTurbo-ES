@@ -6,8 +6,10 @@
 </p>
 
 <p align="center">
+  Mantenido por <a href="https://enjinia.es">Enjinia Tech</a><br/>
   <a href="https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES">Repositorio</a> ·
   <a href="https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES/issues">Issues</a> ·
+  <a href="https://enjinia.es">enjinia.es</a> ·
   <a href="README-en.md">README en inglés</a>
 </p>
 
@@ -26,6 +28,7 @@ MoneyPrinterTurbo-ES genera vídeos cortos a partir de un tema o palabra clave. 
 - renderizar el vídeo final en formato vertical u horizontal
 
 Este fork adapta el proyecto al mercado hispanohablante y prioriza una experiencia más usable para España y LATAM.
+Está mantenido por `Enjinia Tech` y pensado como una distribución pública más lista para usar, desplegar y adaptar a proyectos reales de contenido en español.
 
 ## Qué añade este fork
 

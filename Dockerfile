@@ -1,5 +1,11 @@
 FROM python:3.11-slim-bullseye
 
+LABEL org.opencontainers.image.title="MoneyPrinterTurbo-ES" \
+      org.opencontainers.image.description="Fork hispano de MoneyPrinterTurbo mantenido por Enjinia Tech" \
+      org.opencontainers.image.url="https://enjinia.es" \
+      org.opencontainers.image.source="https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES" \
+      org.opencontainers.image.vendor="Enjinia Tech"
+
 WORKDIR /MoneyPrinterTurbo
 
 ENV PYTHONPATH="/MoneyPrinterTurbo"

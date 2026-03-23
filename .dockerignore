@@ -1,5 +1,6 @@
 # Exclude common Python files and directories
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -14,6 +15,11 @@ __pycache__/
 .env.*
 *.log
 *.db
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.streamlit/
+debug/
 
 # Exclude version control system files
 .git/
@@ -22,3 +28,7 @@ __pycache__/
 
 storage/
 config.toml
+docs/*.mp4
+docs/*.mov
+docs/*.avi
+docs/*.mkv

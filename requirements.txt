@@ -15,4 +15,4 @@ python-multipart==0.0.19
 pyyaml
 requests>=2.31.0
 pydub
-audioop-lts
+audioop-lts; python_version >= "3.13"
