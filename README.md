@@ -217,14 +217,6 @@ ulimit -n 10240
 
 ---
 
-## Hoja de ruta
-
-- Ampliar presets y voces para el mercado hispano
-- Mejorar el flujo para UGC y shorts en español
-- Añadir plantillas para distintos formatos de contenido
-
----
-
 ## Licencia
 
 Este fork mantiene la licencia del proyecto original. Consulta [LICENSE](LICENSE).

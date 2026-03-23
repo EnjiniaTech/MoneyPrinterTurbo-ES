@@ -1585,15 +1585,29 @@ def gemini_tts(
             payload["generationConfig"]["speechConfig"]["languageCode"] = language_code
 
         logger.info(f"start gemini tts, voice name: {voice_name}")
+        request_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent"
+        request_headers = {
+            "x-goog-api-key": api_key,
+            "Content-Type": "application/json",
+        }
+
         response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent",
-            headers={
-                "x-goog-api-key": api_key,
-                "Content-Type": "application/json",
-            },
+            request_url,
+            headers=request_headers,
             json=payload,
             timeout=120,
         )
+        if response.status_code == 400 and language_code:
+            payload["generationConfig"]["speechConfig"].pop("languageCode", None)
+            logger.warning(
+                "Gemini TTS rejected languageCode, retrying without explicit language."
+            )
+            response = requests.post(
+                request_url,
+                headers=request_headers,
+                json=payload,
+                timeout=120,
+            )
         response.raise_for_status()
         data = response.json()
 

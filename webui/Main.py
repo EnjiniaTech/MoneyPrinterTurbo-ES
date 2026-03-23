@@ -205,6 +205,14 @@ def tr(key):
 # 创建基础设置折叠框
 if not config.app.get("hide_config", False):
     with st.expander(tr("Basic Settings"), expanded=False):
+        def has_configured_value(value):
+            if isinstance(value, list):
+                return any(str(item).strip() for item in value)
+            return bool(str(value).strip())
+
+        def status_text(value):
+            return f"✅ {tr('Configured')}" if has_configured_value(value) else f"❌ {tr('Missing')}"
+
         config_panels = st.columns(3)
         left_config_panel = config_panels[0]
         middle_config_panel = config_panels[1]
@@ -213,16 +221,16 @@ if not config.app.get("hide_config", False):
         # 左侧面板 - 日志设置
         with left_config_panel:
             # 是否隐藏配置面板
-            hide_config = st.checkbox(
-                tr("Hide Basic Settings"), value=config.app.get("hide_config", False)
+            st.checkbox(
+                tr("Hide Basic Settings"),
+                value=config.app.get("hide_config", False),
+                disabled=True,
             )
-            config.app["hide_config"] = hide_config
 
             # 是否禁用日志显示
-            hide_log = st.checkbox(
-                tr("Hide Log"), value=config.ui.get("hide_log", False)
+            st.checkbox(
+                tr("Hide Log"), value=config.ui.get("hide_log", False), disabled=True
             )
-            config.ui["hide_log"] = hide_log
 
         # 中间面板 - LLM 设置
 
@@ -250,14 +258,8 @@ if not config.app.get("hide_config", False):
                     saved_llm_provider_index = i
                     break
 
-            llm_provider = st.selectbox(
-                tr("LLM Provider"),
-                options=llm_providers,
-                index=saved_llm_provider_index,
-            )
             llm_helper = st.container()
-            llm_provider = llm_provider.lower()
-            config.app["llm_provider"] = llm_provider
+            llm_provider = llm_providers[saved_llm_provider_index].lower()
 
             llm_api_key = config.app.get(f"{llm_provider}_api_key", "")
             llm_secret_key = config.app.get(
@@ -416,101 +418,58 @@ if not config.app.get("hide_config", False):
                 )
                 st.info(tips)
 
-            st_llm_api_key = st.text_input(
-                tr("API Key"), value=llm_api_key, type="password"
+            st.text_input(
+                tr("LLM Provider"),
+                value=llm_providers[saved_llm_provider_index],
+                disabled=True,
             )
-            st_llm_base_url = st.text_input(tr("Base Url"), value=llm_base_url)
-            st_llm_model_name = ""
+            st.text_input(
+                tr("Base Url"),
+                value=llm_base_url,
+                disabled=True,
+            )
+
             if llm_provider != "ernie":
-                st_llm_model_name = st.text_input(
+                st.text_input(
                     tr("Model Name"),
                     value=llm_model_name,
                     key=f"{llm_provider}_model_name_input",
+                    disabled=True,
                 )
-                if st_llm_model_name:
-                    config.app[f"{llm_provider}_model_name"] = st_llm_model_name
-            else:
-                st_llm_model_name = None
-
-            if st_llm_api_key:
-                config.app[f"{llm_provider}_api_key"] = st_llm_api_key
-            if st_llm_base_url:
-                config.app[f"{llm_provider}_base_url"] = st_llm_base_url
-            if st_llm_model_name:
-                config.app[f"{llm_provider}_model_name"] = st_llm_model_name
+            st.write(
+                f"{tr('Current provider API key')}: {status_text(llm_api_key)}"
+            )
             if llm_provider == "ernie":
-                st_llm_secret_key = st.text_input(
-                    tr("Secret Key"), value=llm_secret_key, type="password"
-                )
-                config.app[f"{llm_provider}_secret_key"] = st_llm_secret_key
+                st.write(f"{tr('Secret Key')}: {status_text(llm_secret_key)}")
 
             if llm_provider == "cloudflare":
-                st_llm_account_id = st.text_input(
-                    tr("Account ID"), value=llm_account_id
+                st.text_input(
+                    tr("Account ID"), value=llm_account_id, disabled=True
                 )
-                if st_llm_account_id:
-                    config.app[f"{llm_provider}_account_id"] = st_llm_account_id
 
         # 右侧面板 - API 密钥设置
         with right_config_panel:
-
-            def get_keys_from_config(cfg_key):
-                api_keys = config.app.get(cfg_key, [])
-                if isinstance(api_keys, str):
-                    api_keys = [api_keys]
-                api_key = ", ".join(api_keys)
-                return api_key
-
-            def save_keys_to_config(cfg_key, value):
-                value = value.replace(" ", "")
-                if value:
-                    config.app[cfg_key] = value.split(",")
-
             st.write(tr("Video Source Settings"))
-
-            pexels_api_key = get_keys_from_config("pexels_api_keys")
-            pexels_api_key = st.text_input(
-                tr("Pexels API Key"), value=pexels_api_key, type="password"
-            )
-            save_keys_to_config("pexels_api_keys", pexels_api_key)
-
-            pixabay_api_key = get_keys_from_config("pixabay_api_keys")
-            pixabay_api_key = st.text_input(
-                tr("Pixabay API Key"), value=pixabay_api_key, type="password"
-            )
-            save_keys_to_config("pixabay_api_keys", pixabay_api_key)
+            st.write(f"{tr('Pexels API Key')}: {status_text(config.app.get('pexels_api_keys', []))}")
+            st.write(f"{tr('Pixabay API Key')}: {status_text(config.app.get('pixabay_api_keys', []))}")
 
             st.write(tr("Voice Provider Settings"))
+            st.write(f"{tr('Gemini API Key')}: {status_text(config.app.get('gemini_api_key', ''))}")
+            st.write(f"{tr('ElevenLabs API Key')}: {status_text(config.app.get('elevenlabs_api_key', ''))}")
 
-            gemini_api_key = st.text_input(
-                tr("Gemini API Key"),
-                value=config.app.get("gemini_api_key", ""),
-                type="password",
-                key="gemini_api_key_input",
-            )
-            config.app["gemini_api_key"] = gemini_api_key
-
-            elevenlabs_api_key = st.text_input(
-                tr("ElevenLabs API Key"),
-                value=config.app.get("elevenlabs_api_key", ""),
-                type="password",
-                key="elevenlabs_api_key_input",
-            )
-            config.app["elevenlabs_api_key"] = elevenlabs_api_key
-
-            elevenlabs_model_id = st.text_input(
+            st.text_input(
                 tr("ElevenLabs Model ID"),
                 value=config.app.get("elevenlabs_model_id", "eleven_multilingual_v2"),
                 key="elevenlabs_model_id_input",
+                disabled=True,
             )
-            config.app["elevenlabs_model_id"] = elevenlabs_model_id
 
-            elevenlabs_voice_id = st.text_input(
+            st.text_input(
                 tr("ElevenLabs Voice ID"),
                 value=config.app.get("elevenlabs_voice_id", ""),
                 key="elevenlabs_voice_id_input",
+                disabled=True,
             )
-            config.app["elevenlabs_voice_id"] = elevenlabs_voice_id
 
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
