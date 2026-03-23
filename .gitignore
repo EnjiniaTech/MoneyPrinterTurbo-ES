@@ -33,3 +33,5 @@ debug/
 debug_*.py
 test_*.py
 streamlit.log
+api.log
+webui.log

@@ -83,7 +83,13 @@ azure_api_version = "2024-02-15-preview"
 
 ########## Gemini API Key
 gemini_api_key = ""
-gemini_model_name = "gemini-1.0-pro"
+gemini_model_name = "gemini-2.0-flash"
+
+########## ElevenLabs TTS
+# Visit https://elevenlabs.io/ to get your API key.
+elevenlabs_api_key = ""
+elevenlabs_model_id = "eleven_multilingual_v2"
+elevenlabs_voice_id = ""
 
 ########## Qwen API Key
 # Visit https://dashscope.console.aliyun.com/apiKey to get your API key
@@ -218,6 +224,9 @@ api_key = ""
 
 [ui]
 # UI related settings
+language = "es"
+tts_server = "azure-tts-v1"
+voice_name = "es-ES-ElviraNeural-Female"
 # 是否隐藏日志信息
 # Whether to hide logs in the UI
 hide_log = false

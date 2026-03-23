@@ -32,11 +32,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="auto",
     menu_items={
-        "Report a bug": "https://github.com/harry0703/MoneyPrinterTurbo/issues",
+        "Report a bug": "https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES/issues",
         "About": "# MoneyPrinterTurbo\nSimply provide a topic or keyword for a video, and it will "
         "automatically generate the video copy, video materials, video subtitles, "
         "and video background music before synthesizing a high-definition short "
-        "video.\n\nhttps://github.com/harry0703/MoneyPrinterTurbo",
+        "video.\n\nhttps://github.com/EnjiniaTech/MoneyPrinterTurbo-ES",
     },
 )
 
@@ -97,6 +97,8 @@ with lang_col:
         config.ui["language"] = code
 
 support_locales = [
+    "es-ES",
+    "es-MX",
     "zh-CN",
     "zh-HK",
     "zh-TW",
@@ -478,6 +480,38 @@ if not config.app.get("hide_config", False):
             )
             save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
+            st.write(tr("Voice Provider Settings"))
+
+            gemini_api_key = st.text_input(
+                tr("Gemini API Key"),
+                value=config.app.get("gemini_api_key", ""),
+                type="password",
+                key="gemini_api_key_input",
+            )
+            config.app["gemini_api_key"] = gemini_api_key
+
+            elevenlabs_api_key = st.text_input(
+                tr("ElevenLabs API Key"),
+                value=config.app.get("elevenlabs_api_key", ""),
+                type="password",
+                key="elevenlabs_api_key_input",
+            )
+            config.app["elevenlabs_api_key"] = elevenlabs_api_key
+
+            elevenlabs_model_id = st.text_input(
+                tr("ElevenLabs Model ID"),
+                value=config.app.get("elevenlabs_model_id", "eleven_multilingual_v2"),
+                key="elevenlabs_model_id_input",
+            )
+            config.app["elevenlabs_model_id"] = elevenlabs_model_id
+
+            elevenlabs_voice_id = st.text_input(
+                tr("ElevenLabs Voice ID"),
+                value=config.app.get("elevenlabs_voice_id", ""),
+                key="elevenlabs_voice_id_input",
+            )
+            config.app["elevenlabs_voice_id"] = elevenlabs_voice_id
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]
@@ -580,7 +614,7 @@ with middle_panel:
 
         if params.video_source == "local":
             uploaded_files = st.file_uploader(
-                "Upload Local Files",
+                tr("Upload Local Files"),
                 type=["mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png"],
                 accept_multiple_files=True,
             )
@@ -646,10 +680,11 @@ with middle_panel:
 
         # 添加TTS服务器选择下拉框
         tts_servers = [
-            ("azure-tts-v1", "Azure TTS V1"),
-            ("azure-tts-v2", "Azure TTS V2"),
-            ("siliconflow", "SiliconFlow TTS"),
-            ("gemini-tts", "Google Gemini TTS"),
+            ("azure-tts-v1", tr("Azure TTS V1")),
+            ("azure-tts-v2", tr("Azure TTS V2")),
+            ("siliconflow", tr("SiliconFlow TTS")),
+            ("gemini-tts", tr("Google Gemini TTS")),
+            ("elevenlabs", tr("ElevenLabs TTS")),
         ]
 
         # 获取保存的TTS服务器，默认为v1
@@ -672,6 +707,7 @@ with middle_panel:
 
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
+        voice_name = config.ui.get("voice_name", "")
 
         if selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
@@ -679,6 +715,13 @@ with middle_panel:
         elif selected_tts_server == "gemini-tts":
             # 获取Gemini TTS的声音列表
             filtered_voices = voice.get_gemini_voices()
+        elif selected_tts_server == "elevenlabs":
+            filtered_voices = voice.get_elevenlabs_voices()
+            saved_elevenlabs_voice_id = config.app.get("elevenlabs_voice_id", "")
+            if not filtered_voices and saved_elevenlabs_voice_id:
+                filtered_voices = [
+                    f"elevenlabs:{saved_elevenlabs_voice_id}:{saved_elevenlabs_voice_id}"
+                ]
         else:
             # 获取Azure的声音列表
             all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -694,12 +737,17 @@ with middle_panel:
                     if "V2" not in v:
                         filtered_voices.append(v)
 
-        friendly_names = {
-            v: v.replace("Female", tr("Female"))
-            .replace("Male", tr("Male"))
-            .replace("Neural", "")
-            for v in filtered_voices
-        }
+        friendly_names = {}
+        for v in filtered_voices:
+            if voice.is_elevenlabs_voice(v):
+                voice_parts = v.split(":", 2)
+                friendly_names[v] = voice_parts[2] if len(voice_parts) >= 3 else v
+            else:
+                friendly_names[v] = (
+                    v.replace("Female", tr("Female"))
+                    .replace("Male", tr("Male"))
+                    .replace("Neural", "")
+                )
 
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
@@ -743,8 +791,42 @@ with middle_panel:
             params.voice_name = ""
             config.ui["voice_name"] = ""
 
+        if selected_tts_server in ("gemini-tts", "elevenlabs"):
+            provider_key = (
+                config.app.get("gemini_api_key", "")
+                if selected_tts_server == "gemini-tts"
+                else config.app.get("elevenlabs_api_key", "")
+            )
+            if not provider_key:
+                st.info(
+                    tr(
+                        "Current TTS server requires provider-specific credentials in Basic Settings."
+                    )
+                )
+
+        if selected_tts_server == "elevenlabs":
+            if st.button(tr("Refresh Voices"), key="refresh_elevenlabs_voices"):
+                st.rerun()
+
+            manual_voice_id = st.text_input(
+                tr("Manual Voice ID"),
+                value=config.app.get("elevenlabs_voice_id", ""),
+                key="manual_elevenlabs_voice_id_input",
+            ).strip()
+            if manual_voice_id:
+                config.app["elevenlabs_voice_id"] = manual_voice_id
+                if not friendly_names:
+                    voice_name = f"elevenlabs:{manual_voice_id}:{manual_voice_id}"
+                    params.voice_name = voice_name
+                    config.ui["voice_name"] = voice_name
+                    st.info(
+                        tr(
+                            "No ElevenLabs voices found. Enter a Voice ID manually or check your API key."
+                        )
+                    )
+
         # 只有在有声音可选时才显示试听按钮
-        if friendly_names and st.button(tr("Play Voice")):
+        if params.voice_name and st.button(tr("Play Voice")):
             play_content = params.video_subject
             if not play_content:
                 play_content = params.video_script
@@ -755,7 +837,7 @@ with middle_panel:
                 audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
                 sub_maker = voice.tts(
                     text=play_content,
-                    voice_name=voice_name,
+                    voice_name=params.voice_name,
                     voice_rate=params.voice_rate,
                     voice_file=audio_file,
                     voice_volume=params.voice_volume,
@@ -765,7 +847,7 @@ with middle_panel:
                     play_content = "This is a example voice. if you hear this, the voice synthesis failed with the original content."
                     sub_maker = voice.tts(
                         text=play_content,
-                        voice_name=voice_name,
+                        voice_name=params.voice_name,
                         voice_rate=params.voice_rate,
                         voice_file=audio_file,
                         voice_volume=params.voice_volume,
@@ -778,7 +860,7 @@ with middle_panel:
 
         # 当选择V2版本或者声音是V2声音时，显示服务区域和API key输入框
         if selected_tts_server == "azure-tts-v2" or (
-            voice_name and voice.is_azure_v2_voice(voice_name)
+            params.voice_name and voice.is_azure_v2_voice(params.voice_name)
         ):
             saved_azure_speech_region = config.azure.get("speech_region", "")
             saved_azure_speech_key = config.azure.get("speech_key", "")
@@ -798,7 +880,7 @@ with middle_panel:
 
         # 当选择硅基流动时，显示API key输入框和说明信息
         if selected_tts_server == "siliconflow" or (
-            voice_name and voice.is_siliconflow_voice(voice_name)
+            params.voice_name and voice.is_siliconflow_voice(params.voice_name)
         ):
             saved_siliconflow_api_key = config.siliconflow.get("api_key", "")
 

@@ -1,7 +1,10 @@
 import asyncio
+import base64
+import io
 import os
 import re
 from datetime import datetime
+from math import log10
 from typing import Union
 from xml.sax.saxutils import unescape
 
@@ -74,6 +77,44 @@ def get_gemini_voices() -> list[str]:
         f"gemini:{voice}-{gender}"
         for voice, gender in voices_with_gender
     ]
+
+
+def get_elevenlabs_voices() -> list[str]:
+    """
+    获取 ElevenLabs 账户可用的声音列表
+
+    Returns:
+        声音列表，格式为 ["elevenlabs:<voice_id>:<voice_name>", ...]
+    """
+    api_key = config.app.get("elevenlabs_api_key", "")
+    if not api_key:
+        return []
+
+    try:
+        response = requests.get(
+            "https://api.elevenlabs.io/v1/voices",
+            headers={
+                "Accept": "application/json",
+                "xi-api-key": api_key,
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except Exception as e:
+        logger.warning(f"failed to fetch ElevenLabs voices: {e}")
+        return []
+
+    voices = []
+    for item in data.get("voices", []):
+        voice_id = item.get("voice_id", "").strip()
+        voice_name = item.get("name", "").strip() or voice_id
+        if voice_id:
+            voices.append(f"elevenlabs:{voice_id}:{voice_name}")
+
+    voices.sort(key=lambda item: item.split(":", 2)[2].lower())
+    return voices
 
 
 def get_all_azure_voices(filter_locals=None) -> list[str]:
@@ -1116,6 +1157,59 @@ def is_gemini_voice(voice_name: str):
     return voice_name.startswith("gemini:")
 
 
+def is_elevenlabs_voice(voice_name: str):
+    """检查是否是 ElevenLabs 的声音"""
+    return voice_name.startswith("elevenlabs:")
+
+
+def build_sub_maker_from_audio(text: str, audio_file: str) -> Union[SubMaker, None]:
+    sub_maker = SubMaker()
+
+    try:
+        audio_clip = AudioFileClip(audio_file)
+        audio_duration = audio_clip.duration
+        audio_clip.close()
+    except Exception as e:
+        logger.warning(f"failed to inspect audio duration: {e}")
+        audio_duration = 10.0
+
+    audio_duration_100ns = int(audio_duration * 10000000)
+    sentences = utils.split_string_by_punctuations(text)
+
+    if sentences:
+        total_chars = sum(len(sentence) for sentence in sentences)
+        char_duration = audio_duration_100ns / total_chars if total_chars > 0 else 0
+
+        current_offset = 0
+        for sentence in sentences:
+            if not sentence.strip():
+                continue
+
+            sentence_duration = int(len(sentence) * char_duration)
+            sub_maker.subs.append(sentence)
+            sub_maker.offset.append(
+                (current_offset, current_offset + sentence_duration)
+            )
+            current_offset += sentence_duration
+    else:
+        sub_maker.create_sub((0, audio_duration_100ns), text)
+
+    return sub_maker
+
+
+def apply_volume_gain(voice_file: str, voice_volume: float):
+    if voice_volume == 1.0:
+        return
+
+    from pydub import AudioSegment
+
+    audio_segment = AudioSegment.from_file(voice_file)
+    safe_volume = max(voice_volume, 0.01)
+    gain_db = 20 * log10(safe_volume)
+    audio_segment = audio_segment.apply_gain(gain_db)
+    audio_segment.export(voice_file, format="mp3")
+
+
 def tts(
     text: str,
     voice_name: str,
@@ -1154,6 +1248,13 @@ def tts(
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
+    elif is_elevenlabs_voice(voice_name):
+        parts = voice_name.split(":", 2)
+        if len(parts) >= 2:
+            voice_id = parts[1]
+            return elevenlabs_tts(text, voice_id, voice_file, voice_volume)
+        logger.error(f"Invalid elevenlabs voice name format: {voice_name}")
+        return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -1443,119 +1544,146 @@ def gemini_tts(
     voice_volume: float = 1.0,
 ) -> Union[SubMaker, None]:
     """
-    使用Google Gemini TTS生成语音
-    
-    Args:
-        text: 要转换的文本
-        voice_name: 语音名称，如 "Zephyr", "Puck" 等
-        voice_rate: 语音速率（当前未使用）
-        voice_file: 输出音频文件路径
-        voice_volume: 音频音量（当前未使用）
-        
-    Returns:
-        SubMaker对象或None
+    使用当前 Gemini Speech Generation API 生成语音
     """
-    import base64
-    import json
-    import io
-    from pydub import AudioSegment
-    import google.generativeai as genai
-    
     try:
-        # 配置Gemini API
+        from pydub import AudioSegment
+
         api_key = config.app.get("gemini_api_key", "")
         if not api_key:
             logger.error("Gemini API key is not set")
             return None
-            
-        genai.configure(api_key=api_key)
-        
-        logger.info(f"start, voice name: {voice_name}, try: 1")
-        
-        # 使用Gemini TTS API
-        model = genai.GenerativeModel("gemini-2.5-flash-preview-tts")
-        
-        generation_config = {
-            "response_modalities": ["AUDIO"],
-            "speech_config": {
-                "voice_config": {
-                    "prebuilt_voice_config": {
-                        "voice_name": voice_name
-                    }
-                }
-            }
+
+        ui_language = config.ui.get("language", "en")
+        language_map = {
+            "es": "es-ES",
+            "en": "en-US",
+            "de": "de-DE",
+            "fr": "fr-FR",
+            "pt": "pt-BR",
+            "vi": "vi-VN",
+            "tr": "tr-TR",
+            "zh": "cmn-CN",
         }
-        
-        response = model.generate_content(
-            contents=text,
-            generation_config=generation_config
+
+        payload = {
+            "contents": [{"parts": [{"text": text.strip()}]}],
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {
+                            "voiceName": voice_name,
+                        }
+                    }
+                },
+            },
+        }
+
+        language_code = language_map.get(ui_language)
+        if language_code:
+            payload["generationConfig"]["speechConfig"]["languageCode"] = language_code
+
+        logger.info(f"start gemini tts, voice name: {voice_name}")
+        response = requests.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent",
+            headers={
+                "x-goog-api-key": api_key,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=120,
         )
-        
-        # 检查响应
-        if not response.candidates or not response.candidates[0].content:
-            logger.error("No audio content received from Gemini TTS")
+        response.raise_for_status()
+        data = response.json()
+
+        candidates = data.get("candidates", [])
+        if not candidates:
+            logger.error(f"Gemini TTS returned no candidates: {data}")
             return None
-            
-        # 获取音频数据
-        audio_data = None
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                audio_data = part.inline_data.data
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        audio_b64 = ""
+        for part in parts:
+            inline_data = part.get("inlineData", {})
+            if inline_data.get("data"):
+                audio_b64 = inline_data["data"]
                 break
-                
-        if not audio_data:
-            logger.error("No audio data found in response")
+
+        if not audio_b64:
+            logger.error(f"Gemini TTS returned no inline audio data: {data}")
             return None
-            
-        # 音频数据已经是原始字节，不需要base64解码
-        if isinstance(audio_data, str):
-            # 如果是字符串，则需要base64解码
-            audio_bytes = base64.b64decode(audio_data)
-        else:
-            # 如果已经是字节，直接使用
-            audio_bytes = audio_data
-        
-        # 尝试不同的音频格式 - Gemini可能返回不同的格式
-        audio_segment = None
-        
-        # Gemini返回Linear PCM格式，按照文档参数解析
-        try:
-            audio_segment = AudioSegment.from_file(
-                io.BytesIO(audio_bytes), 
-                format="raw",
-                frame_rate=24000,  # Gemini TTS默认采样率
-                channels=1,        # 单声道
-                sample_width=2     # 16-bit
-            )
-        except Exception as e:
-            logger.error(f"Failed to load PCM audio: {e}")
-            return None
-        
-        # 导出为MP3格式
-        audio_segment.export(voice_file, format="mp3")
-        
-        logger.info(f"completed, output file: {voice_file}")
-        
-        # 创建SubMaker对象用于字幕
-        sub_maker = SubMaker()
-        audio_duration = len(audio_segment) / 1000.0  # 转换为秒
-        
-        # 将音频长度转换为100纳秒单位（与edge_tts兼容）
-        audio_duration_100ns = int(audio_duration * 10000000)
-        
-        # 使用create_sub方法正确创建字幕项
-        sub_maker.create_sub(
-            (0, audio_duration_100ns), 
-            text
+
+        audio_bytes = base64.b64decode(audio_b64)
+        audio_segment = AudioSegment.from_file(
+            io.BytesIO(audio_bytes),
+            format="raw",
+            frame_rate=24000,
+            channels=1,
+            sample_width=2,
         )
-        
-        return sub_maker
-        
+        if voice_volume != 1.0:
+            safe_volume = max(voice_volume, 0.01)
+            audio_segment = audio_segment.apply_gain(20 * log10(safe_volume))
+
+        audio_segment.export(voice_file, format="mp3")
+        logger.info(f"completed, output file: {voice_file}")
+        return build_sub_maker_from_audio(text, voice_file)
     except ImportError as e:
-        logger.error(f"Missing required package for Gemini TTS: {str(e)}. Please install: pip install pydub")
+        logger.error(
+            f"Missing required package for Gemini TTS: {str(e)}. Please install: pip install pydub"
+        )
         return None
     except Exception as e:
         logger.error(f"Gemini TTS failed, error: {str(e)}")
+        return None
+
+
+def elevenlabs_tts(
+    text: str,
+    voice_id: str,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    api_key = config.app.get("elevenlabs_api_key", "")
+    model_id = config.app.get("elevenlabs_model_id", "eleven_multilingual_v2")
+    if not api_key:
+        logger.error("ElevenLabs API key is not set")
+        return None
+
+    try:
+        logger.info(f"start elevenlabs tts, voice id: {voice_id}")
+        response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream",
+            headers={
+                "Accept": "audio/mpeg",
+                "xi-api-key": api_key,
+                "Content-Type": "application/json",
+            },
+            json={
+                "text": text.strip(),
+                "model_id": model_id,
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.8,
+                    "style": 0.0,
+                    "use_speaker_boost": True,
+                },
+            },
+            stream=True,
+            timeout=120,
+        )
+        response.raise_for_status()
+        with open(voice_file, "wb") as file:
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    file.write(chunk)
+
+        apply_volume_gain(voice_file, voice_volume)
+        logger.info(f"completed, output file: {voice_file}")
+        return build_sub_maker_from_audio(text, voice_file)
+    except Exception as e:
+        logger.error(f"ElevenLabs TTS failed, error: {str(e)}")
         return None
 
 

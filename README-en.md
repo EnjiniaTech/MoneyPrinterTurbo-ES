@@ -2,13 +2,13 @@
 <h1 align="center">MoneyPrinterTurbo 💸</h1>
 
 <p align="center">
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/stargazers"><img src="https://img.shields.io/github/stars/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Stargazers"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/issues"><img src="https://img.shields.io/github/issues/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Issues"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/network/members"><img src="https://img.shields.io/github/forks/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="Forks"></a>
-  <a href="https://github.com/harry0703/MoneyPrinterTurbo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/harry0703/MoneyPrinterTurbo.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES/stargazers"><img src="https://img.shields.io/github/stars/EnjiniaTech/MoneyPrinterTurbo-ES.svg?style=for-the-badge" alt="Stargazers"></a>
+  <a href="https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES/issues"><img src="https://img.shields.io/github/issues/EnjiniaTech/MoneyPrinterTurbo-ES.svg?style=for-the-badge" alt="Issues"></a>
+  <a href="https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES/network/members"><img src="https://img.shields.io/github/forks/EnjiniaTech/MoneyPrinterTurbo-ES.svg?style=for-the-badge" alt="Forks"></a>
+  <a href="https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES/blob/main/LICENSE"><img src="https://img.shields.io/github/license/EnjiniaTech/MoneyPrinterTurbo-ES.svg?style=for-the-badge" alt="License"></a>
 </p>
 
-<h3>English | <a href="README.md">简体中文</a></h3>
+<h3>English | <a href="README.md">Español</a></h3>
 
 <div align="center">
   <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
@@ -145,7 +145,7 @@ One-click startup packages have not been created yet. See the **Installation & D
 #### ① Clone the Project
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES.git
 ```
 
 #### ② Modify the Configuration File
@@ -186,8 +186,8 @@ Open your browser and visit http://0.0.0.0:8080/docs Or http://0.0.0.0:8080/redo
 It is recommended to create a Python virtual environment using [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
+git clone https://github.com/EnjiniaTech/MoneyPrinterTurbo-ES.git
+cd MoneyPrinterTurbo-ES
 conda create -n MoneyPrinterTurbo python=3.11
 conda activate MoneyPrinterTurbo
 pip install -r requirements.txt
