@@ -1,6 +1,7 @@
 import os
 import platform
 import sys
+from html import escape
 from uuid import uuid4
 
 import streamlit as st
@@ -45,6 +46,62 @@ streamlit_style = """
 <style>
 h1 {
     padding-top: 0 !important;
+}
+.elevenlabs-spotlight {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px;
+    padding: 18px 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    margin-bottom: 10px;
+}
+.elevenlabs-kicker {
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 8px;
+}
+.elevenlabs-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.elevenlabs-copy {
+    color: rgba(255,255,255,0.78);
+    margin-bottom: 10px;
+}
+.elevenlabs-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 6px;
+}
+.elevenlabs-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 5px 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.86);
+    font-size: 0.82rem;
+    line-height: 1;
+}
+.elevenlabs-muted {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.82rem;
+}
+.elevenlabs-card-note {
+    color: rgba(255,255,255,0.68);
+    font-size: 0.9rem;
+    margin-top: 4px;
+}
+.elevenlabs-active-bar {
+    border-left: 3px solid #34d399;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(52, 211, 153, 0.08);
+    margin-bottom: 12px;
 }
 </style>
 """
@@ -200,6 +257,73 @@ locales = utils.load_locales(i18n_dir)
 def tr(key):
     loc = locales.get(st.session_state["ui_language"], {})
     return loc.get("Translation", {}).get(key, key)
+
+
+def elevenlabs_voice_value(item):
+    return f"elevenlabs:{item['voice_id']}:{item['name']}"
+
+
+def elevenlabs_voice_meta(item):
+    fields = [
+        item.get("language", ""),
+        item.get("locale", ""),
+        item.get("accent", ""),
+        item.get("gender", ""),
+        item.get("age", ""),
+        item.get("category", ""),
+        item.get("use_case", ""),
+    ]
+    return [str(value).strip() for value in fields if str(value).strip()]
+
+
+def elevenlabs_voice_note(item):
+    parts = []
+    if item.get("descriptive"):
+        parts.append(item["descriptive"])
+    if item.get("use_case"):
+        parts.append(item["use_case"])
+    if item.get("locale"):
+        parts.append(item["locale"])
+    return " · ".join(str(value).strip() for value in parts if str(value).strip())
+
+
+def render_elevenlabs_chips(item, extra=None):
+    chips = elevenlabs_voice_meta(item)
+    if extra:
+        chips.extend([value for value in extra if value])
+    if not chips:
+        return ""
+    return '<div class="elevenlabs-chip-row">' + "".join(
+        f'<span class="elevenlabs-chip">{escape(str(chip))}</span>' for chip in chips
+    ) + "</div>"
+
+
+def render_elevenlabs_spotlight(item, kicker):
+    note = elevenlabs_voice_note(item)
+    description = item.get("description") or ""
+    markup = [
+        '<div class="elevenlabs-spotlight">',
+        f'<div class="elevenlabs-kicker">{escape(kicker)}</div>',
+        f'<div class="elevenlabs-title">{escape(item["name"])}</div>',
+    ]
+    if description:
+        markup.append(f'<div class="elevenlabs-copy">{escape(description)}</div>')
+    markup.append(render_elevenlabs_chips(item))
+    if note:
+        markup.append(f'<div class="elevenlabs-muted">{escape(note)}</div>')
+    markup.append("</div>")
+    return "".join(markup)
+
+
+def render_elevenlabs_active_bar(item):
+    chips = render_elevenlabs_chips(item)
+    return (
+        '<div class="elevenlabs-active-bar">'
+        f'<div class="elevenlabs-kicker">{escape(tr("Active Voice"))}</div>'
+        f'<div class="elevenlabs-title">{escape(item["name"])}</div>'
+        f"{chips}"
+        "</div>"
+    )
 
 
 # 创建基础设置折叠框
@@ -667,6 +791,7 @@ with middle_panel:
         # 根据选择的TTS服务器获取声音列表
         filtered_voices = []
         voice_name = config.ui.get("voice_name", "")
+        elevenlabs_voice_catalog = []
 
         if selected_tts_server == "siliconflow":
             # 获取硅基流动的声音列表
@@ -675,7 +800,11 @@ with middle_panel:
             # 获取Gemini TTS的声音列表
             filtered_voices = voice.get_gemini_voices()
         elif selected_tts_server == "elevenlabs":
-            filtered_voices = voice.get_elevenlabs_voices()
+            elevenlabs_voice_catalog = voice.get_elevenlabs_my_voice_catalog()
+            filtered_voices = [
+                f"elevenlabs:{item['voice_id']}:{item['name']}"
+                for item in elevenlabs_voice_catalog
+            ]
             saved_elevenlabs_voice_id = config.app.get("elevenlabs_voice_id", "")
             if not filtered_voices and saved_elevenlabs_voice_id:
                 filtered_voices = [
@@ -710,45 +839,80 @@ with middle_panel:
 
         saved_voice_name = config.ui.get("voice_name", "")
         saved_voice_name_index = 0
+        selected_elevenlabs_voice = None
+        selected_elevenlabs_voice_id = ""
 
-        # 检查保存的声音是否在当前筛选的声音列表中
-        if saved_voice_name in friendly_names:
-            saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
-        else:
-            # 如果不在，则根据当前UI语言选择一个默认声音
-            for i, v in enumerate(filtered_voices):
-                if v.lower().startswith(st.session_state["ui_language"].lower()):
-                    saved_voice_name_index = i
-                    break
+        if selected_tts_server == "elevenlabs":
+            if saved_voice_name.startswith("elevenlabs:"):
+                voice_parts = saved_voice_name.split(":", 2)
+                if len(voice_parts) >= 2:
+                    selected_elevenlabs_voice_id = voice_parts[1]
+            if not selected_elevenlabs_voice_id:
+                selected_elevenlabs_voice_id = config.app.get("elevenlabs_voice_id", "")
 
-        # 如果没有找到匹配的声音，使用第一个声音
-        if saved_voice_name_index >= len(friendly_names) and friendly_names:
-            saved_voice_name_index = 0
-
-        # 确保有声音可选
-        if friendly_names:
-            selected_friendly_name = st.selectbox(
-                tr("Speech Synthesis"),
-                options=list(friendly_names.values()),
-                index=min(saved_voice_name_index, len(friendly_names) - 1)
-                if friendly_names
-                else 0,
+            selected_elevenlabs_voice = next(
+                (
+                    item
+                    for item in elevenlabs_voice_catalog
+                    if item["voice_id"] == selected_elevenlabs_voice_id
+                ),
+                None,
             )
 
-            voice_name = list(friendly_names.keys())[
-                list(friendly_names.values()).index(selected_friendly_name)
-            ]
-            params.voice_name = voice_name
-            config.ui["voice_name"] = voice_name
-        else:
-            # 如果没有声音可选，显示提示信息
-            st.warning(
-                tr(
-                    "No voices available for the selected TTS server. Please select another server."
+            if selected_elevenlabs_voice:
+                voice_name = elevenlabs_voice_value(selected_elevenlabs_voice)
+                params.voice_name = voice_name
+                config.ui["voice_name"] = voice_name
+                config.app["elevenlabs_voice_id"] = selected_elevenlabs_voice["voice_id"]
+            elif selected_elevenlabs_voice_id:
+                voice_name = (
+                    f"elevenlabs:{selected_elevenlabs_voice_id}:{selected_elevenlabs_voice_id}"
                 )
-            )
-            params.voice_name = ""
-            config.ui["voice_name"] = ""
+                params.voice_name = voice_name
+                config.ui["voice_name"] = voice_name
+                config.app["elevenlabs_voice_id"] = selected_elevenlabs_voice_id
+            else:
+                params.voice_name = ""
+                config.ui["voice_name"] = ""
+        else:
+            # 检查保存的声音是否在当前筛选的声音列表中
+            if saved_voice_name in friendly_names:
+                saved_voice_name_index = list(friendly_names.keys()).index(saved_voice_name)
+            else:
+                # 如果不在，则根据当前UI语言选择一个默认声音
+                for i, v in enumerate(filtered_voices):
+                    if v.lower().startswith(st.session_state["ui_language"].lower()):
+                        saved_voice_name_index = i
+                        break
+
+            # 如果没有找到匹配的声音，使用第一个声音
+            if saved_voice_name_index >= len(friendly_names) and friendly_names:
+                saved_voice_name_index = 0
+
+            # 确保有声音可选
+            if friendly_names:
+                selected_friendly_name = st.selectbox(
+                    tr("Speech Synthesis"),
+                    options=list(friendly_names.values()),
+                    index=min(saved_voice_name_index, len(friendly_names) - 1)
+                    if friendly_names
+                    else 0,
+                )
+
+                voice_name = list(friendly_names.keys())[
+                    list(friendly_names.values()).index(selected_friendly_name)
+                ]
+                params.voice_name = voice_name
+                config.ui["voice_name"] = voice_name
+            else:
+                # 如果没有声音可选，显示提示信息
+                st.warning(
+                    tr(
+                        "No voices available for the selected TTS server. Please select another server."
+                    )
+                )
+                params.voice_name = ""
+                config.ui["voice_name"] = ""
 
         if selected_tts_server in ("gemini-tts", "elevenlabs"):
             provider_key = (
@@ -759,30 +923,344 @@ with middle_panel:
             if not provider_key:
                 st.info(
                     tr(
-                        "Current TTS server requires provider-specific credentials in Basic Settings."
+                        "Current TTS server requires provider-specific credentials via environment variables or config.toml."
                     )
                 )
 
         if selected_tts_server == "elevenlabs":
-            if st.button(tr("Refresh Voices"), key="refresh_elevenlabs_voices"):
-                st.rerun()
+            model_presets = {
+                tr("Fast"): "eleven_turbo_v2_5",
+                tr("Balanced"): "eleven_multilingual_v2",
+                tr("Premium"): "eleven_v3",
+            }
+            elevenlabs_my_voice_ids = {
+                item["voice_id"] for item in elevenlabs_voice_catalog if item.get("voice_id")
+            }
+            reverse_model_presets = {value: key for key, value in model_presets.items()}
+            current_model_id = config.app.get("elevenlabs_model_id", "eleven_multilingual_v2")
+            current_model_label = reverse_model_presets.get(current_model_id, tr("Custom"))
+            model_options = list(model_presets.keys()) + [tr("Custom")]
+            model_index = model_options.index(current_model_label)
+            selected_model_label = st.selectbox(
+                tr("Voice Quality"),
+                options=model_options,
+                index=model_index,
+                help=tr(
+                    "Fast is cheaper, Balanced is the best default, Premium is for the most expressive renders."
+                ),
+            )
+            if selected_model_label == tr("Custom"):
+                config.app["elevenlabs_model_id"] = st.text_input(
+                    tr("Custom Model ID"),
+                    value=current_model_id,
+                    key="elevenlabs_custom_model_id_input",
+                ).strip() or current_model_id
+            else:
+                config.app["elevenlabs_model_id"] = model_presets[selected_model_label]
 
-            manual_voice_id = st.text_input(
-                tr("Manual Voice ID"),
-                value=config.app.get("elevenlabs_voice_id", ""),
-                key="manual_elevenlabs_voice_id_input",
-            ).strip()
-            if manual_voice_id:
-                config.app["elevenlabs_voice_id"] = manual_voice_id
-                if not friendly_names:
-                    voice_name = f"elevenlabs:{manual_voice_id}:{manual_voice_id}"
-                    params.voice_name = voice_name
-                    config.ui["voice_name"] = voice_name
-                    st.info(
-                        tr(
-                            "No ElevenLabs voices found. Enter a Voice ID manually or check your API key."
+            voice_tabs = st.tabs([tr("My Voices"), tr("Explore Voices")])
+
+            with voice_tabs[0]:
+                library_header = st.columns([2, 1])
+                my_voice_search = library_header[0].text_input(
+                    tr("Search My Voices"),
+                    key="elevenlabs_my_voice_search_input",
+                ).strip().lower()
+                library_header[1].metric(
+                    tr("Available Voices"),
+                    len(elevenlabs_voice_catalog),
+                )
+
+                if my_voice_search:
+                    filtered_catalog = [
+                        item
+                        for item in elevenlabs_voice_catalog
+                        if my_voice_search in item["name"].lower()
+                        or my_voice_search in " ".join(elevenlabs_voice_meta(item)).lower()
+                    ]
+                else:
+                    filtered_catalog = elevenlabs_voice_catalog
+
+                if selected_elevenlabs_voice:
+                    with st.container(border=True):
+                        st.markdown(
+                            render_elevenlabs_active_bar(selected_elevenlabs_voice),
+                            unsafe_allow_html=True,
                         )
+                        st.markdown(
+                            render_elevenlabs_spotlight(
+                                selected_elevenlabs_voice,
+                                tr("Selected Voice"),
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                        st.success(tr("This voice is active"))
+                        if selected_elevenlabs_voice.get("preview_url"):
+                            st.audio(
+                                selected_elevenlabs_voice["preview_url"],
+                                format="audio/mpeg",
+                            )
+
+                if filtered_catalog:
+                    for idx in range(0, len(filtered_catalog), 2):
+                        row = st.columns(2)
+                        for col, item in zip(row, filtered_catalog[idx:idx + 2]):
+                            with col:
+                                with st.container(border=True):
+                                    st.markdown(f"**{item['name']}**")
+                                    st.markdown(
+                                        render_elevenlabs_chips(
+                                            item,
+                                            extra=[
+                                                tr("Selected")
+                                                if item["voice_id"]
+                                                == selected_elevenlabs_voice_id
+                                                else ""
+                                            ],
+                                        ),
+                                        unsafe_allow_html=True,
+                                    )
+                                    note = elevenlabs_voice_note(item)
+                                    if note:
+                                        st.markdown(
+                                            f"<div class='elevenlabs-card-note'>{escape(note)}</div>",
+                                            unsafe_allow_html=True,
+                                        )
+                                    if item.get("description"):
+                                        st.write(item["description"])
+                                    if item.get("preview_url"):
+                                        st.audio(item["preview_url"], format="audio/mpeg")
+                                    if st.button(
+                                        tr("Selected")
+                                        if item["voice_id"] == selected_elevenlabs_voice_id
+                                        else tr("Use This Voice"),
+                                        key=f"elevenlabs_use_voice_{item['voice_id']}",
+                                        use_container_width=True,
+                                        type="primary"
+                                        if item["voice_id"] == selected_elevenlabs_voice_id
+                                        else "secondary",
+                                        disabled=item["voice_id"] == selected_elevenlabs_voice_id,
+                                    ):
+                                        config.app["elevenlabs_voice_id"] = item["voice_id"]
+                                        config.ui["voice_name"] = elevenlabs_voice_value(item)
+                                        st.rerun()
+                elif elevenlabs_voice_catalog:
+                    st.info(tr("No voices match this search"))
+                else:
+                    st.info(tr("No ElevenLabs voices in My Voices"))
+
+            with voice_tabs[1]:
+                if selected_elevenlabs_voice:
+                    st.markdown(
+                        render_elevenlabs_active_bar(selected_elevenlabs_voice),
+                        unsafe_allow_html=True,
                     )
+
+                discovery_seed = (
+                    voice.search_elevenlabs_voice_library(page_size=48)
+                    if config.app.get("elevenlabs_api_key", "")
+                    else []
+                )
+
+                seed_languages = sorted(
+                    {item.get("language", "").strip() for item in discovery_seed if item.get("language")}
+                )
+                seed_accents = sorted(
+                    {item.get("accent", "").strip() for item in discovery_seed if item.get("accent")}
+                )
+                seed_categories = sorted(
+                    {item.get("category", "").strip() for item in discovery_seed if item.get("category")}
+                )
+                seed_use_cases = sorted(
+                    {item.get("use_case", "").strip() for item in discovery_seed if item.get("use_case")}
+                )
+
+                first_filter_row = st.columns(2)
+                elevenlabs_search = first_filter_row[0].text_input(
+                    tr("Search Voices"),
+                    key="elevenlabs_search_input",
+                ).strip()
+                elevenlabs_language = first_filter_row[1].selectbox(
+                    tr("Language Filter"),
+                    options=[""] + seed_languages,
+                    format_func=lambda value: value or tr("Any"),
+                    key="elevenlabs_language_filter_input",
+                )
+                language_seed = (
+                    voice.search_elevenlabs_voice_library(
+                        language=elevenlabs_language,
+                        page_size=48,
+                    )
+                    if config.app.get("elevenlabs_api_key", "") and elevenlabs_language
+                    else discovery_seed
+                )
+                second_filter_row = st.columns(2)
+                elevenlabs_use_case = second_filter_row[0].selectbox(
+                    tr("Use Case Filter"),
+                    options=[""]
+                    + sorted(
+                        {
+                            item.get("use_case", "").strip()
+                            for item in language_seed
+                            if item.get("use_case")
+                        }
+                    ),
+                    format_func=lambda value: value or tr("Any"),
+                    key="elevenlabs_use_case_filter_input",
+                )
+                elevenlabs_accent = second_filter_row[1].selectbox(
+                    tr("Accent Filter"),
+                    options=[""]
+                    + sorted(
+                        {
+                            item.get("accent", "").strip()
+                            for item in language_seed
+                            if item.get("accent")
+                        }
+                    ),
+                    format_func=lambda value: value or tr("Any"),
+                    key="elevenlabs_accent_filter_input",
+                )
+
+                third_filter_row = st.columns(2)
+                elevenlabs_gender = third_filter_row[0].selectbox(
+                    tr("Gender Filter"),
+                    options=["", "male", "female", "neutral"],
+                    format_func=lambda value: value or tr("Any"),
+                    key="elevenlabs_gender_filter_input",
+                )
+                elevenlabs_age = third_filter_row[1].selectbox(
+                    tr("Age Filter"),
+                    options=["", "young", "middle aged", "old"],
+                    format_func=lambda value: value or tr("Any"),
+                    key="elevenlabs_age_filter_input",
+                )
+
+                fourth_filter_row = st.columns(2)
+                elevenlabs_category = fourth_filter_row[0].selectbox(
+                    tr("Category Filter"),
+                    options=[""]
+                    + sorted(
+                        {
+                            item.get("category", "").strip()
+                            for item in language_seed
+                            if item.get("category")
+                        }
+                    ),
+                    format_func=lambda value: value or tr("Any"),
+                    key="elevenlabs_category_filter_input",
+                )
+
+                elevenlabs_library_results = voice.search_elevenlabs_voice_library(
+                    search=elevenlabs_search,
+                    language=elevenlabs_language,
+                    accent=elevenlabs_accent,
+                    gender=elevenlabs_gender,
+                    age=elevenlabs_age,
+                    category=elevenlabs_category,
+                    use_case=elevenlabs_use_case,
+                    page_size=8,
+                )
+                fourth_filter_row[1].metric(
+                    tr("Results"),
+                    len(elevenlabs_library_results),
+                )
+
+                if not config.app.get("elevenlabs_api_key", ""):
+                    st.info(tr("Add ElevenLabs API key to explore voices"))
+                elif not elevenlabs_library_results:
+                    st.info(tr("No library voices found"))
+                else:
+                    for idx in range(0, len(elevenlabs_library_results), 2):
+                        row = st.columns(2)
+                        for col, item in zip(row, elevenlabs_library_results[idx:idx + 2]):
+                            with col:
+                                with st.container(border=True):
+                                    st.markdown(f"**{item['name']}**")
+                                    st.markdown(
+                                        render_elevenlabs_chips(
+                                            item,
+                                            extra=[
+                                                tr("In My Voices")
+                                                if item.get("voice_id")
+                                                and item["voice_id"] in elevenlabs_my_voice_ids
+                                                else ""
+                                            ],
+                                        ),
+                                        unsafe_allow_html=True,
+                                    )
+                                    note = elevenlabs_voice_note(item)
+                                    if note:
+                                        st.markdown(
+                                            f"<div class='elevenlabs-card-note'>{escape(note)}</div>",
+                                            unsafe_allow_html=True,
+                                        )
+                                    if item.get("description"):
+                                        st.write(item["description"])
+                                    if item.get("preview_url"):
+                                        st.audio(item["preview_url"], format="audio/mpeg")
+                                    if item.get("voice_id"):
+                                        already_added = item["voice_id"] in elevenlabs_my_voice_ids
+                                        is_active = item["voice_id"] == selected_elevenlabs_voice_id
+                                        add_label = (
+                                            tr("Selected")
+                                            if is_active
+                                            else tr("Use This Voice")
+                                            if already_added
+                                            else tr("Add and Use This Voice")
+                                        )
+                                        if st.button(
+                                            add_label,
+                                            key=f"elevenlabs_add_voice_{item['voice_id']}",
+                                            use_container_width=True,
+                                            type="primary",
+                                            disabled=is_active,
+                                        ):
+                                            ok = True
+                                            message = ""
+                                            if not already_added:
+                                                ok, message = voice.add_elevenlabs_library_voice(
+                                                    item.get("public_owner_id", ""),
+                                                    item["voice_id"],
+                                                    item["name"],
+                                                )
+                                            if ok:
+                                                config.app["elevenlabs_voice_id"] = item["voice_id"]
+                                                config.ui["voice_name"] = (
+                                                    f"elevenlabs:{item['voice_id']}:{item['name']}"
+                                                )
+                                                if not already_added:
+                                                    st.success(tr("Voice added to My Voices"))
+                                                st.rerun()
+                                            else:
+                                                st.error(
+                                                    f"{tr('Could not add voice')}: {message}"
+                                                )
+
+            action_cols = st.columns([1, 1, 3])
+            if action_cols[0].button(tr("Refresh Voices"), key="refresh_elevenlabs_voices"):
+                st.rerun()
+            action_cols[1].caption(
+                f"{tr('Current Model')}: `{config.app.get('elevenlabs_model_id', 'eleven_multilingual_v2')}`"
+            )
+
+            with st.expander(tr("Advanced Voice Tools"), expanded=False):
+                manual_voice_id = st.text_input(
+                    tr("Manual Voice ID"),
+                    value=config.app.get("elevenlabs_voice_id", ""),
+                    key="manual_elevenlabs_voice_id_input",
+                ).strip()
+                if manual_voice_id:
+                    config.app["elevenlabs_voice_id"] = manual_voice_id
+                    if not friendly_names:
+                        voice_name = f"elevenlabs:{manual_voice_id}:{manual_voice_id}"
+                        params.voice_name = voice_name
+                        config.ui["voice_name"] = voice_name
+                        st.info(
+                            tr(
+                                "No ElevenLabs voices found. Enter a Voice ID manually or check your API key."
+                            )
+                        )
 
         # 只有在有声音可选时才显示试听按钮
         if params.voice_name and st.button(tr("Play Voice")):

@@ -5,7 +5,7 @@ import os
 import re
 from datetime import datetime
 from math import log10
-from typing import Union
+from typing import Any, Union
 from xml.sax.saxutils import unescape
 
 import edge_tts
@@ -18,6 +18,169 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 
 from app.config import config
 from app.utils import utils
+
+
+def _elevenlabs_headers() -> dict[str, str]:
+    api_key = config.app.get("elevenlabs_api_key", "")
+    return {
+        "Accept": "application/json",
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+    }
+
+
+def _normalize_elevenlabs_voice(item: dict[str, Any], source: str) -> dict[str, Any]:
+    labels = item.get("labels") or {}
+    language = labels.get("language") or item.get("language", "")
+    locale = labels.get("locale") or item.get("locale", "")
+    accent = labels.get("accent") or item.get("accent", "")
+    gender = labels.get("gender") or item.get("gender", "")
+    age = labels.get("age") or item.get("age", "")
+    category = labels.get("category") or item.get("category", "")
+    descriptive = labels.get("descriptive") or item.get("descriptive", "")
+    use_case = (
+        labels.get("use_case")
+        or labels.get("useCase")
+        or item.get("use_case")
+        or item.get("useCase", "")
+    )
+    description = item.get("description") or labels.get("description") or ""
+    public_owner_id = (
+        item.get("public_owner_id")
+        or item.get("public_user_id")
+        or item.get("share_link_public_owner_id")
+        or ""
+    )
+    voice_id = item.get("voice_id", "").strip()
+    name = (item.get("name") or voice_id).strip()
+    preview_url = item.get("preview_url") or item.get("previewUrl") or ""
+    return {
+        "source": source,
+        "voice_id": voice_id,
+        "name": name,
+        "preview_url": preview_url,
+        "language": language,
+        "locale": locale,
+        "accent": accent,
+        "gender": gender,
+        "age": age,
+        "category": category,
+        "descriptive": descriptive,
+        "use_case": use_case,
+        "description": description,
+        "public_owner_id": public_owner_id,
+        "raw": item,
+    }
+
+
+def _fetch_elevenlabs_json(
+    url: str, params: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
+    api_key = config.app.get("elevenlabs_api_key", "")
+    if not api_key:
+        return None
+
+    try:
+        response = requests.get(
+            url,
+            headers=_elevenlabs_headers(),
+            params=params,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.warning(f"failed to fetch ElevenLabs data from {url}: {e}")
+        return None
+
+
+def get_elevenlabs_my_voice_catalog() -> list[dict[str, Any]]:
+    data = _fetch_elevenlabs_json("https://api.elevenlabs.io/v1/voices")
+    if not data:
+        return []
+
+    voices = [
+        _normalize_elevenlabs_voice(item, source="my")
+        for item in data.get("voices", [])
+        if item.get("voice_id")
+    ]
+    voices.sort(key=lambda item: item["name"].lower())
+    return voices
+
+
+def search_elevenlabs_voice_library(
+    search: str = "",
+    language: str = "",
+    accent: str = "",
+    gender: str = "",
+    age: str = "",
+    category: str = "",
+    use_case: str = "",
+    page_size: int = 12,
+    page: int = 0,
+    use_cases: str = "",
+) -> list[dict[str, Any]]:
+    params = {
+        "page_size": page_size,
+        "page": page,
+    }
+    if search:
+        params["search"] = search
+    if language:
+        params["language"] = language
+    if accent:
+        params["accent"] = accent
+    if gender:
+        params["gender"] = gender
+    if age:
+        params["age"] = age
+    if category:
+        params["category"] = category
+    if use_case:
+        params["use_case"] = use_case
+    if use_cases:
+        params["use_cases"] = use_cases
+
+    data = _fetch_elevenlabs_json(
+        "https://api.elevenlabs.io/v1/shared-voices", params=params
+    )
+    if not data:
+        return []
+
+    voices = [
+        _normalize_elevenlabs_voice(item, source="library")
+        for item in data.get("voices", [])
+        if item.get("voice_id")
+    ]
+    voices.sort(key=lambda item: item["name"].lower())
+    return voices
+
+
+def add_elevenlabs_library_voice(
+    public_owner_id: str, voice_id: str, new_name: str = ""
+) -> tuple[bool, str]:
+    api_key = config.app.get("elevenlabs_api_key", "")
+    if not api_key:
+        return False, "ElevenLabs API key is not set"
+    if not public_owner_id or not voice_id:
+        return False, "Missing public owner id or voice id"
+
+    payload = {}
+    if new_name.strip():
+        payload["new_name"] = new_name.strip()
+
+    try:
+        response = requests.post(
+            f"https://api.elevenlabs.io/v1/voices/add/{public_owner_id}/{voice_id}",
+            headers=_elevenlabs_headers(),
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return True, "Voice added"
+    except Exception as e:
+        logger.warning(f"failed to add ElevenLabs shared voice: {e}")
+        return False, str(e)
 
 
 def get_siliconflow_voices() -> list[str]:
@@ -86,34 +249,9 @@ def get_elevenlabs_voices() -> list[str]:
     Returns:
         声音列表，格式为 ["elevenlabs:<voice_id>:<voice_name>", ...]
     """
-    api_key = config.app.get("elevenlabs_api_key", "")
-    if not api_key:
-        return []
-
-    try:
-        response = requests.get(
-            "https://api.elevenlabs.io/v1/voices",
-            headers={
-                "Accept": "application/json",
-                "xi-api-key": api_key,
-                "Content-Type": "application/json",
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        logger.warning(f"failed to fetch ElevenLabs voices: {e}")
-        return []
-
     voices = []
-    for item in data.get("voices", []):
-        voice_id = item.get("voice_id", "").strip()
-        voice_name = item.get("name", "").strip() or voice_id
-        if voice_id:
-            voices.append(f"elevenlabs:{voice_id}:{voice_name}")
-
-    voices.sort(key=lambda item: item.split(":", 2)[2].lower())
+    for item in get_elevenlabs_my_voice_catalog():
+        voices.append(f"elevenlabs:{item['voice_id']}:{item['name']}")
     return voices
 
 
